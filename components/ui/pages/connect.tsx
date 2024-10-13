@@ -7,10 +7,12 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { getFullnodeUrl, SuiClient, } from '@mysten/sui/client';
 import { useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit"
 import { useEnokiFlow } from '@mysten/enoki/react';
+
 export default function Connect() {
   const router = useRouter();
   const [numChildren, setNumChildren] = useState('');
   const [childrenData, setChildrenData] = useState([]);
+  const [parent, setparent] = useState('');
   const client = useSuiClient();
   const enokiFlow = useEnokiFlow();
   const { isConnected, address } =
@@ -24,45 +26,59 @@ export default function Connect() {
   const handleCreateChildren = async () => {
     console.log(childrenData);
     const keypair = await enokiFlow.getKeypair();
-    console.log("my adress", keypair.getPublicKey().toSuiAddress())
+    console.log("my address for children", keypair.getPublicKey().toSuiAddress());
+
     const tx = new Transaction();
-    tx.setGasBudget(100000000); 
-    console.log("tx created", keypair)
-    try {
-      const childrenObject = tx.moveCall({
-        target: `0xef5d4a739e26b1c784277bbeff474afc3625eced38e605c4dd684ae50dfaf418::AccountModuleyarn::create_child`,
-        arguments: [                    // TxContext
-          tx.object(),            // Parent object ID
+    tx.setGasBudget(100000000);
+
+    console.log("I created the children but the parent is", parent);
+
+    childrenData.forEach((child) => {
+      tx.moveCall({
+        target: `0x1e000a2e13062e56f58af947a922e46612bf9323374b12173d19bb452c2c5fbf::AccountModule::create_child`,
+        arguments: [
+          tx.object("Jaqueline"),
+          tx.object(parent),
         ],
       });
-    } catch (err) {
-      console.error(err);
-      throw new Error("Non");
-    }
-    console.log("move call")
-    client.signAndExecuteTransaction({
+      console.log("move call for child", child);
+    });
+
+    const response = await client.signAndExecuteTransaction({
       signer: keypair,
       transaction: tx,
-  });
-    console.log("Finish")
+      options: {
+        showEffects: true,
+      },
+    });
+
+    console.log("Finish for children", response);
+    await localStorage.setItem("parentObjectId", parent);
+    router.push("/home");
   };
   const handleCreateParent = async () => {
     console.log("parent")
     const keypair = await enokiFlow.getKeypair();
     console.log("my adress", keypair.getPublicKey().toSuiAddress())
     const tx = new Transaction();
-    tx.setGasBudget(100000000); 
+    tx.setGasBudget(100000000);
     console.log("tx created", keypair)
     const parentObject = tx.moveCall({
-        target: `0xef5d4a739e26b1c784277bbeff474afc3625eced38e605c4dd684ae50dfaf418::AccountModule::create_parent`,
-        arguments: [],
+      target: `0x1e000a2e13062e56f58af947a922e46612bf9323374b12173d19bb452c2c5fbf::AccountModule::create_parent`,
+      arguments: [tx.object("Michel"),],
     });
     console.log("move call", parentObject)
-    const ert = client.signAndExecuteTransaction({
-        signer: keypair,
-        transaction: tx,
+    const response = await client.signAndExecuteTransaction({
+      signer: keypair,
+      transaction: tx,
+      options: {
+        showEffects: true
+      }
     });
-    console.log("Finish", ert)
+    console.log("Finish", response)
+    
+    setparent(response.effects.created[0].reference.objectId);
+    console.log("i put the objectid", parent);
   };
   return (
     <div className="max-w-sm rounded-3xl overflow-hidden shadow-lg bg-white">
@@ -86,18 +102,6 @@ export default function Connect() {
                 value={childrenData[index]?.name || ''}
                 onChange={(e) => handleChildDataChange(index, 'name', e.target.value)}
                 placeholder="Joe"
-                className="w-full p-3 border border-gray-300 rounded-lg mb-4"
-              />
-
-              <label className="block text-gray-700 mb-1" htmlFor={`birthday-${index}`}>
-                Birthday
-              </label>
-              <input
-                type="text"
-                id={`birthday-${index}`}
-                value={childrenData[index]?.birthday || ''}
-                onChange={(e) => handleChildDataChange(index, 'birthday', e.target.value)}
-                placeholder="MM/DD/YYYY"
                 className="w-full p-3 border border-gray-300 rounded-lg mb-4"
               />
 
@@ -134,7 +138,7 @@ export default function Connect() {
             onChange={(e) => {
               handleCreateParent();
               setNumChildren(e.target.value);
-              setChildrenData(Array(Number(e.target.value)).fill({ name: '', birthday: '', email: '' }));
+              setChildrenData(Array(Number(e.target.value)).fill({ name: '', email: '' }));
             }}
             placeholder="Number"
             className="w-full p-3 border border-gray-300 rounded-lg text-center mb-4"
